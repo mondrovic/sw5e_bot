@@ -1,37 +1,52 @@
 require("dotenv").config();
 
-// setup bot
+// connect to client
 const Discord = require("discord.js");
-const bot = new Discord.Client();
+const client = new Discord.Client();
+const guildId = "814000807824850955";
+const token = process.env.TOKEN;
 
-// import bot commands
-bot.commands = new Discord.Collection();
-const botCommands = require("./commands");
-
-Object.keys(botCommands).map((key) => {
-  bot.commands.set(botCommands[key].name, botCommands[key]);
-});
-
-// connect to client with token
-const TOKEN = process.env.TOKEN;
-bot.login(TOKEN);
-
-bot.on("ready", () => {
-  console.info(`Logged in as ${bot.user.tag}!`);
-});
-
-bot.on("message", (msg) => {
-  const args = msg.content.split(/ +/);
-  const command = args.shift().toLowerCase();
-
-  console.info(`Called command: ${command}`);
-
-  if (!bot.commands.has(command)) return;
-
-  try {
-    bot.commands.get(command).execute(msg, args);
-  } catch (err) {
-    console.error(err);
-    msg.reply("There was an error trying to execute that command");
+// setup function to return app/bot access
+const getApp = (guildId) => {
+  const app = client.api.applications(client.user.id);
+  if (guildId) {
+    app.guilds(guildId);
   }
+  return app;
+};
+
+// start client
+client.on("ready", async () => {
+  console.info("Bot ready");
+
+  // import commands to guild and console log the array
+  const commands = await getApp(guildId).commands.get();
+  console.log(commands);
+
+  // post sample command
+  await getApp(guildId).commands.post({
+    data: {
+      name: "ping",
+      description: "A simple ping pong command",
+    },
+  });
+
+  // create websocket to listen for event
+  // pulls from posted command (data.name.toLowerCase); in this case, ping
+  client.ws.on("INTERACTION_CREATE", async (interaction) => {
+    const command = interaction.data.name.toLowerCase();
+
+    if (command === "ping") {
+      client.api.interactions(interaction.id, interaction.token).callback.post({
+        data: {
+          type: 4,
+          data: {
+            content: "Pong",
+          },
+        },
+      });
+    }
+  });
 });
+
+client.login(token);
